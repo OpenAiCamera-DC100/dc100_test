@@ -101,10 +101,10 @@ static void print_usage(const DC_CHAR *name) {
 }
 
 int main(int argc, char *argv[]) {
-    DC_U32 u32Width = 1920;
-    DC_U32 u32Height = 1080;
-    DC_U32 bitrate = 5000000;
-    DC_U32 frame = 30;
+    DC_U32 u32Width = 1280;
+    DC_U32 u32Height = 720;
+    DC_U32 bitrate = 1280 * 720 * 3;
+    DC_U32 frame = 24;
     DC_BOOL bMultictx = DC_FALSE;
     DC_CHAR *pDeviceName = "rkispp_scale0";
     DC_CHAR *pIqfilesPath = "/etc/iqfiles";

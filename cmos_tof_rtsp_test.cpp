@@ -448,8 +448,8 @@ GET:
 		cout << (int)rangelist.depthrangelist[rangelist.count - 1] << endl;
 	}
 
-    pthread_t main_stream_thread;
-    pthread_create(&main_stream_thread, NULL, GetCh, NULL);
+    //pthread_t main_stream_thread;
+    //pthread_create(&main_stream_thread, NULL, GetCh, NULL);
 
 
 	while (!quit)
@@ -721,7 +721,7 @@ GET:
 			}
         }
 	}
-    pthread_join(main_stream_thread, NULL);
+    //pthread_join(main_stream_thread, NULL);
    
     // destroy venc before vi
     rtsp_del_demo(g_rtsplive);

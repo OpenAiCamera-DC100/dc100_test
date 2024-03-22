@@ -22,8 +22,8 @@
 #define EX_2            "cmos_leftcam_rtsp_test"
 #define EX_3            "cmos_tof_rtsp_test"
 #define EX_4            "cmos_thermalcam_rtsp_test"
-#define EX_5            "cmos_person_detection_test"
-#define EX_6            "cmos_stereo_venc_save"
+#define EX_5            "cmos_head_detection_test"
+#define EX_6            "cmos_yolo_object_detection_test"
 #define EX_7            "cmos_stereo_depthmap_test"
 
 int sock;
@@ -223,10 +223,10 @@ int main() {
                                 system("cmos_thermalcam_rtsp_test &"); 
                             }
                             else if(!strcmp(exam, EX_5)) {
-                                system("cmos_person_detection_test &");
+                                system("cmos_vi_rockx_face_detect_rtsp_test -x head_v1 &");
                             }
                             else if(!strcmp(exam, EX_6)) {
-                                system("cmos_stereo_venc_save &");
+                                system("cmos_yolo_test &");
                             }
                             else if(!strcmp(exam, EX_7)) {
                                 
@@ -254,10 +254,10 @@ int main() {
                                 system("killall -2 cmos_thermalcam_rtsp_test");
                             }
                             else if(!strcmp(exam, EX_5)) {
-                                system("killall -2 cmos_person_detection_test");
+                                system("killall -2 cmos_vi_rockx_face_detect_rtsp_test");
                             }
                             else if(!strcmp(exam, EX_6)) {
-                                system("killall -2 cmos_stereo_venc_save");
+                                system("killall -2 cmos_yolo_test");
                             }
                             else if(!strcmp(exam, EX_7)) {
                                 

@@ -15,7 +15,8 @@
 #include "rknn_api.h"
 #include "common/sample_common.h"
 #include "librtsp/rtsp_demo.h"
-#include "yolov5/postprocess.h"
+//#include "yolov5/postprocess.h"
+#include "yolov5/YOLOv562Detector.h"
 
 #include "opencv2/opencv.hpp"
 #include "opencv2/core/core.hpp"
@@ -29,10 +30,7 @@
 #define SUB_HEIGHT 720
 #define MAX_RKNN_LIST_NUM 10
 
-// rknn
-char *model_name = (char *)"/oem/usr/share/yolov5s_v6.2_output3_4.rknn";
-const float nms_threshold = NMS_THRESH;
-const float box_conf_threshold = BOX_THRESH;
+YOLOv562Detector detector;
 
 rtsp_demo_handle g_rtsplive = NULL;
 static rtsp_session_handle g_rtsp_session;
@@ -64,58 +62,6 @@ void video_packet_cb(MEDIA_BUFFER mb)
 
     DC_MPI_MB_ReleaseBuffer(mb);
     packet_cnt++;
-}
-
-static unsigned char *load_data(FILE *fp, size_t ofst, size_t sz)
-{
-    unsigned char *data;
-    int ret;
-
-    data = NULL;
-
-    if (NULL == fp)
-    {
-        return NULL;
-    }
-
-    ret = fseek(fp, ofst, SEEK_SET);
-    if (ret != 0)
-    {
-        printf("blob seek failure.\n");
-        return NULL;
-    }
-
-    data = (unsigned char *)malloc(sz);
-    if (data == NULL)
-    {
-        printf("buffer malloc failure.\n");
-        return NULL;
-    }
-    ret = fread(data, 1, sz, fp);
-    return data;
-}
-
-static unsigned char *load_model(const char *filename, int *model_size)
-{
-    FILE *fp;
-    unsigned char *data;
-
-    fp = fopen(filename, "rb");
-    if (NULL == fp)
-    {
-        printf("Open file %s failed.\n", filename);
-        return NULL;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    int size = ftell(fp);
-
-    data = load_data(fp, 0, size);
-
-    fclose(fp);
-
-    *model_size = size;
-    return data;
 }
 
 static long getCurrentTimeMsec()
@@ -291,42 +237,6 @@ void nv12_to_rgb24(unsigned char *yuvbuffer, unsigned char *rga_buffer,
     // fclose(f);
 }
 
-int nv12_border(char *pic, int pic_w, int pic_h, int rect_x, int rect_y,
-                int rect_w, int rect_h, int R, int G, int B)
-{
-    /* Set up the rectangle border size */
-    const int border = 5;
-
-    /* RGB convert YUV */
-    int Y, U, V;
-    Y = 0.299 * R + 0.587 * G + 0.114 * B;
-    U = -0.1687 * R + 0.3313 * G + 0.5 * B + 128;
-    V = 0.5 * R - 0.4187 * G - 0.0813 * B + 128;
-    /* Locking the scope of rectangle border range */
-    int j, k;
-    for (j = rect_y; j < rect_y + rect_h; j++)
-    {
-        for (k = rect_x; k < rect_x + rect_w; k++)
-        {
-            if (k < (rect_x + border) || k > (rect_x + rect_w - border) ||
-                j < (rect_y + border) || j > (rect_y + rect_h - border))
-            {
-                /* Components of YUV's storage address index */
-                int y_index = j * pic_w + k;
-                int u_index =
-                    (y_index / 2 - pic_w / 2 * ((j + 1) / 2)) * 2 + pic_w * pic_h;
-                int v_index = u_index + 1;
-                /* set up YUV's conponents value of rectangle border */
-                pic[y_index] = Y;
-                pic[u_index] = U;
-                pic[v_index] = V;
-            }
-        }
-    }
-
-    return 0;
-}
-
 static void printRKNNTensor(rknn_tensor_attr *attr)
 {
     printf("index=%d name=%s n_dims=%d dims=[%d %d %d %d] n_elems=%d size=%d "
@@ -336,190 +246,18 @@ static void printRKNNTensor(rknn_tensor_attr *attr)
            attr->qnt_type, attr->fl, attr->zp, attr->scale);
 }
 
-typedef struct node
-{
-    long timeval;
-    detect_result_group_t detect_result_group;
-    struct node *next;
-} Node;
-
-typedef struct my_stack
-{
-    int size;
-    Node *top;
-} rknn_list;
-
-void create_rknn_list(rknn_list **s)
-{
-    if (*s != NULL)
-        return;
-    *s = (rknn_list *)malloc(sizeof(rknn_list));
-    (*s)->top = NULL;
-    (*s)->size = 0;
-    printf("create rknn_list success\n");
-}
-
-void destory_rknn_list(rknn_list **s)
-{
-    Node *t = NULL;
-    if (*s == NULL)
-        return;
-    while ((*s)->top)
-    {
-        t = (*s)->top;
-        (*s)->top = t->next;
-        free(t);
-    }
-    free(*s);
-    *s = NULL;
-}
-
-void rknn_list_push(rknn_list *s, long timeval,
-                    detect_result_group_t detect_result_group)
-{
-    Node *t = NULL;
-    t = (Node *)malloc(sizeof(Node));
-    t->timeval = timeval;
-    t->detect_result_group = detect_result_group;
-    if (s->top == NULL)
-    {
-        s->top = t;
-        t->next = NULL;
-    }
-    else
-    {
-        t->next = s->top;
-        s->top = t;
-    }
-    s->size++;
-}
-
-void rknn_list_pop(rknn_list *s, long *timeval,
-                   detect_result_group_t *detect_result_group)
-{
-    Node *t = NULL;
-    if (s == NULL || s->top == NULL)
-        return;
-    t = s->top;
-    *timeval = t->timeval;
-    *detect_result_group = t->detect_result_group;
-    s->top = t->next;
-    free(t);
-    s->size--;
-}
-
-void rknn_list_drop(rknn_list *s)
-{
-    Node *t = NULL;
-    if (s == NULL || s->top == NULL)
-        return;
-    t = s->top;
-    s->top = t->next;
-    free(t);
-    s->size--;
-}
-
-int rknn_list_size(rknn_list *s)
-{
-    if (s == NULL)
-        return -1;
-    return s->size;
-}
-
-rknn_list *rknn_list_;
-
 static void *GetMediaBuffer(void *arg)
 {
     printf("#Start %s thread, arg:%p\n", __func__, arg);
 
-    rknn_context ctx;
-    int ret;
-    int model_len = 0;
-    unsigned char *model;
+    ModelConfig cfg;
+    cfg.nc = 80;
+    cfg.model_file_path = (char *)"/usr/share/yolov5s_v6.2_output3_4.rknn";
+    cfg.nms_threshold = 0.45;
+    cfg.conf_thres = 0.25;
 
-    printf("Loading model ...\n");
-    model = load_model(model_name, &model_len);
-    ret = rknn_init(&ctx, model, model_len, 0);
-    if (ret < 0)
-    {
-        printf("rknn_init fail! ret=%d\n", ret);
-        return NULL;
-    }
-
-    rknn_sdk_version version;
-    ret = rknn_query(ctx, RKNN_QUERY_SDK_VERSION, &version,
-                     sizeof(rknn_sdk_version));
-    if (ret < 0)
-    {
-        printf("rknn_query error ret=%d\n", ret);
-        return NULL;
-    }
-
-    printf("sdk version: %s driver version: %s\n", version.api_version,
-           version.drv_version);
-
-    // Get Model Input Output Info
-    rknn_input_output_num io_num;
-    ret = rknn_query(ctx, RKNN_QUERY_IN_OUT_NUM, &io_num, sizeof(io_num));
-    if (ret != RKNN_SUCC)
-    {
-        printf("rknn_query fail! ret=%d\n", ret);
-        return NULL;
-    }
-
-    printf("model input num: %d, output num: %d\n", io_num.n_input, io_num.n_output);
-
-    printf("input tensors:\n");
-    rknn_tensor_attr input_attrs[io_num.n_input];
-    memset(input_attrs, 0, sizeof(input_attrs));
-    for (unsigned int i = 0; i < io_num.n_input; i++)
-    {
-        input_attrs[i].index = i;
-        ret = rknn_query(ctx, RKNN_QUERY_INPUT_ATTR, &(input_attrs[i]),
-                         sizeof(rknn_tensor_attr));
-        if (ret != RKNN_SUCC)
-        {
-            printf("rknn_query fail! ret=%d\n", ret);
-            return NULL;
-        }
-        printRKNNTensor(&(input_attrs[i]));
-        // dump_tensor_attr(&(input_attrs[i]));
-    }
-
-    printf("output tensors:\n");
-    rknn_tensor_attr output_attrs[io_num.n_output];
-    memset(output_attrs, 0, sizeof(output_attrs));
-    for (unsigned int i = 0; i < io_num.n_output; i++)
-    {
-        output_attrs[i].index = i;
-        ret = rknn_query(ctx, RKNN_QUERY_OUTPUT_ATTR, &(output_attrs[i]),
-                         sizeof(rknn_tensor_attr));
-        if (ret != RKNN_SUCC)
-        {
-            printf("rknn_query fail! ret=%d\n", ret);
-            return NULL;
-        }
-        printRKNNTensor(&(output_attrs[i]));
-        // dump_tensor_attr(&(output_attrs[i]));
-    }
-
-    int channel = 3;
-    int width = 0;
-    int height = 0;
-    if (input_attrs[0].fmt == RKNN_TENSOR_NCHW)
-    {
-        printf("model is NCHW input fmt\n");
-        width = input_attrs[0].dims[0];
-        height = input_attrs[0].dims[1];
-    }
-    else
-    {
-        printf("model is NHWC input fmt\n");
-        width = input_attrs[0].dims[1];
-        height = input_attrs[0].dims[2];
-    }
-
-    printf("model input height=%d, width=%d, channel=%d\n", height, width, channel);
+    cv::Mat *scr = NULL;
+    detector.load_model(&cfg);
 
     MEDIA_BUFFER buffer = NULL;
     while (!quit)
@@ -531,97 +269,37 @@ static void *GetMediaBuffer(void *arg)
         }
 
         int rga_buffer_size = SUB_WIDTH * SUB_HEIGHT * 3; // nv12 3/2, rgb 3
-        int rga_buffer_model_input_size = RKNN_INPUT * RKNN_INPUT * 3;
+        //int rga_buffer_model_input_size = RKNN_INPUT * RKNN_INPUT * 3;
         unsigned char *rga_buffer = (unsigned char *)malloc(rga_buffer_size);
-        unsigned char *rga_buffer_model_input = (unsigned char *)malloc(rga_buffer_model_input_size);
+        //unsigned char *rga_buffer_model_input = (unsigned char *)malloc(rga_buffer_model_input_size);
 
         nv12_to_rgb24((unsigned char *)DC_MPI_MB_GetPtr(buffer), rga_buffer, SUB_WIDTH, SUB_HEIGHT);
-        rgb24_resize(rga_buffer, rga_buffer_model_input, SUB_WIDTH, SUB_HEIGHT, RKNN_INPUT, RKNN_INPUT);
+        //rgb24_resize(rga_buffer, rga_buffer_model_input, SUB_WIDTH, SUB_HEIGHT, RKNN_INPUT, RKNN_INPUT);
 
-        // Set Input Data
-        rknn_input inputs[1];
-        memset(inputs, 0, sizeof(inputs));
-        inputs[0].index = 0;
-        inputs[0].type = RKNN_TENSOR_UINT8;
-        inputs[0].size = rga_buffer_model_input_size;
-        inputs[0].fmt = RKNN_TENSOR_NHWC;
-        inputs[0].buf = rga_buffer_model_input;
+        scr = new cv::Mat(cv::Size(SUB_WIDTH, SUB_HEIGHT), CV_8UC3, rga_buffer);
 
-        ret = rknn_inputs_set(ctx, io_num.n_input, inputs);
-        if (ret < 0)
-        {
-            printf("rknn_input_set fail! ret=%d\n", ret);
-            return NULL;
-        }
+        detect_result_group_t detect_result_group = detector.inference(*scr, RKNN_INPUT);
 
-        // Run
-        // printf("rknn_run\n");
-        ret = rknn_run(ctx, NULL);
-        if (ret < 0)
-        {
-            printf("rknn_run fail! ret=%d\n", ret);
-            return NULL;
-        }
-
-        // Get Output
-        /*
-        rknn_output outputs[2];
-        memset(outputs, 0, sizeof(outputs));
-        outputs[0].want_float = 1;
-        outputs[1].want_float = 1;
-        */
-
-        rknn_output outputs[io_num.n_output];
-        memset(outputs, 0, sizeof(outputs));
-        for (int i = 0; i < io_num.n_output; i++)
-        {
-            outputs[i].want_float = 0;
-        }
-
-        ret = rknn_outputs_get(ctx, io_num.n_output, outputs, NULL);
-        if (ret < 0)
-        {
-            printf("rknn_outputs_get fail! ret=%d\n", ret);
-            return NULL;
-        }
+        delete scr;
 
         // Post Process
-        float scale_w = (float)width / MAIN_WIDHT;
-        float scale_h = (float)height / MAIN_HEIGHT;
-
-        detect_result_group_t detect_result_group;
-        std::vector<float> out_scales;
-        std::vector<uint32_t> out_zps;
-        for (int i = 0; i < io_num.n_output; ++i)
-        {
-            out_scales.push_back(output_attrs[i].scale);
-            out_zps.push_back(output_attrs[i].zp);
-        }
-        post_process((uint8_t *)outputs[0].buf, (uint8_t *)outputs[1].buf, (uint8_t *)outputs[2].buf, height, width,
-                     box_conf_threshold, nms_threshold, scale_w, scale_h, out_zps, out_scales, &detect_result_group);
-        // Release rknn_outputs
-        rknn_outputs_release(ctx, 2, outputs);
 
         if (detect_result_group.count > 0)
         {
-            rknn_list_push(rknn_list_, getCurrentTimeMsec(), detect_result_group);
-            int size = rknn_list_size(rknn_list_);
+            detector.rknn_list_push(detector.rknn_list_, getCurrentTimeMsec(), detect_result_group);
+            int size = detector.rknn_list_size(detector.rknn_list_);
             if (size >= MAX_RKNN_LIST_NUM)
-                rknn_list_drop(rknn_list_);
+                detector.rknn_list_drop(detector.rknn_list_);
             // printf("size is %d\n", size);
         }
 
         DC_MPI_MB_ReleaseBuffer(buffer);
         if (rga_buffer)
             free(rga_buffer);
-        if (rga_buffer_model_input)
-            free(rga_buffer_model_input);
+        // if (rga_buffer_model_input)
+        //     free(rga_buffer_model_input);
     }
     // release
-    if (ctx)
-        rknn_destroy(ctx);
-    if (model)
-        free(model);
 
     return NULL;
 }
@@ -630,6 +308,14 @@ static void *MainStream(void *arg)
 {
     MEDIA_BUFFER buffer;
     cv::Mat *scr = NULL;
+
+    int x1[64];
+    int y1[64];
+    int x2[64];
+    int y2[64];
+    int count;
+    unsigned char no_blink = 0;
+    char text[64][16];
 
     while (!quit)
     {
@@ -641,31 +327,48 @@ static void *MainStream(void *arg)
 
         scr = new cv::Mat(cv::Size(MAIN_WIDHT, MAIN_HEIGHT), CV_8UC3, (char *)DC_MPI_MB_GetPtr(buffer));
 
-        if (rknn_list_size(rknn_list_))
+        if (detector.rknn_list_size(detector.rknn_list_))
         {
-            char text[256];
+            
             long time_before;
             detect_result_group_t detect_result_group;
             memset(&detect_result_group, 0, sizeof(detect_result_group));
-            rknn_list_pop(rknn_list_, &time_before, &detect_result_group);
+            detector.rknn_list_pop(detector.rknn_list_, &time_before, &detect_result_group);
             // printf("time interval is %ld\n", getCurrentTimeMsec() - time_before);
 
+            count = detect_result_group.count;
             for (int i = 0; i < detect_result_group.count; i++)
             {
                 //if (detect_result_group.results[i].prop < 4.0)
                 //    continue;
-                sprintf(text, "%s %.2f", detect_result_group.results[i].name, detect_result_group.results[i].prop);
+                sprintf(text[i], "%s %.2f", detect_result_group.results[i].name, detect_result_group.results[i].confidence);
                 // printf("%s @ (%d %d %d %d) %f\n", detect_result_group.results[i].name, detect_result_group.results[i].box.left, detect_result_group.results[i].box.top,
                 //        detect_result_group.results[i].box.right, detect_result_group.results[i].box.bottom, detect_result_group.results[i].prop);
-                int x1 = detect_result_group.results[i].box.left;
-                int y1 = detect_result_group.results[i].box.top;
-                int x2 = detect_result_group.results[i].box.right;
-                int y2 = detect_result_group.results[i].box.bottom;
+                x1[i] = detect_result_group.results[i].box.x;
+                y1[i] = detect_result_group.results[i].box.y;
+                x2[i] = detect_result_group.results[i].box.width + detect_result_group.results[i].box.x;
+                y2[i] = detect_result_group.results[i].box.height + detect_result_group.results[i].box.y;
 
-                cv::rectangle(*scr, cv::Point(x1, y1 + 30), cv::Point(x2, y1), cv::Scalar(51, 0, 153), -1);
-                cv::rectangle(*scr, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(51, 0, 153), 3);
-                cv::putText(*scr, text, cv::Point(x1, y1), 0, 1, cv::Scalar(255, 255, 255), 2);
+                x1[i] *= 1.5;
+                y1[i] *= 1.5;
+                x2[i] *= 1.5;
+                y2[i] *= 1.5;                
             }
+            no_blink = 0;
+        }
+
+        if (no_blink < 3)
+        {
+            for (int i = 0; i < count; i++) {
+                cv::rectangle(*scr, cv::Point(x1[i], y1[i] + 30), cv::Point(x2[i], y1[i]), cv::Scalar(51, 0, 153), -1);
+                cv::rectangle(*scr, cv::Point(x1[i], y1[i]), cv::Point(x2[i], y2[i]), cv::Scalar(51, 0, 153), 3);
+                cv::putText(*scr, text[i], cv::Point(x1[i], y1[i]), 0, 1, cv::Scalar(255, 255, 255), 2);
+            }
+        }
+        no_blink++;
+        if (no_blink > 250)
+        {
+            no_blink = 3;
         }
         // send from VI to VENC
         delete scr;
@@ -678,8 +381,6 @@ int main()
 {
 
     // dcmedia
-    DC_U32 u32Width = 1920;
-    DC_U32 u32Height = 1080;
     // DC_U32 bitrate = 5000000;
     // DC_U32 frame = 30;
     DC_BOOL bMultictx = DC_FALSE;
@@ -690,8 +391,8 @@ int main()
     int ret;
 
     // rknn init
-    printf("post process config: box_conf_threshold = %.2f, nms_threshold = %.2f\n",
-           box_conf_threshold, nms_threshold);
+    //printf("post process config: box_conf_threshold = %.2f, nms_threshold = %.2f\n",
+    //       box_conf_threshold, nms_threshold);
 
     // init cam
     dc_aiq_working_mode_t hdr_mode = DC_AIQ_WORKING_MODE_NORMAL;
@@ -773,7 +474,7 @@ int main()
     venc_chn_attr.stVencAttr.enType = DC_CODEC_TYPE_H264;
     venc_chn_attr.stRcAttr.enRcMode = VENC_RC_MODE_H264CBR;
     venc_chn_attr.stRcAttr.stH264Cbr.u32Gop = 30;
-    venc_chn_attr.stRcAttr.stH264Cbr.u32BitRate = u32Width * u32Height * 3;
+    venc_chn_attr.stRcAttr.stH264Cbr.u32BitRate = MAIN_WIDHT * MAIN_HEIGHT * 2;
     // frame rate: in 30/1, out 30/1.
     venc_chn_attr.stRcAttr.stH264Cbr.fr32DstFrameRateDen = 1;
     venc_chn_attr.stRcAttr.stH264Cbr.fr32DstFrameRateNum = 20;
@@ -821,7 +522,8 @@ int main()
     }
     DC_MPI_VI_StartStream(0, 1);
 
-    create_rknn_list(&rknn_list_);
+    //create_rknn_list(&rknn_list_);
+    detector.create_rknn_list(&(detector.rknn_list_));
 
     pthread_t read_thread;
     pthread_create(&read_thread, NULL, GetMediaBuffer, NULL);

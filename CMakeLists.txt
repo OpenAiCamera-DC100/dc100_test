@@ -92,18 +92,20 @@ install(TARGETS cmos_leftcam_rtsp_test RUNTIME DESTINATION "bin")
 #--------------------------
 # cmos_person_detection_test.c
 #--------------------------
-add_executable(cmos_person_detection_test ${CMAKE_SOURCE_DIR}/cmos_person_detection_test.c ${C_DCAIQ_SOURCE})
-target_link_libraries(cmos_person_detection_test ${ROCKCHIP_RTSP_LIB} m dcmedia dcaiq_c pthread rga rknn_api)
-target_include_directories(cmos_person_detection_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SYSROOT}/usr/include/rknn)
-install(TARGETS cmos_person_detection_test RUNTIME DESTINATION "bin")
+#add_executable(cmos_person_detection_test ${CMAKE_SOURCE_DIR}/cmos_person_detection_test.c ${C_DCAIQ_SOURCE})
+#target_link_libraries(cmos_person_detection_test ${ROCKCHIP_RTSP_LIB} m dcmedia dcaiq_c pthread rga rknn_api)
+#target_include_directories(cmos_person_detection_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SYSROOT}/usr/include/rknn)
+#install(TARGETS cmos_person_detection_test RUNTIME DESTINATION "bin")
 
 #--------------------------
 # cmos_yolo_test.cc
 #--------------------------
-add_executable(cmos_yolo_test ${CMAKE_SOURCE_DIR}/cmos_yolo_test.cc ${CC_DCAIQ_SOURCE} ${YOLOV5_SOURCE} ${TRACKER_SOURCE})
+add_executable(cmos_yolo_test ${CMAKE_SOURCE_DIR}/cmos_yolo_test.cc ${CC_DCAIQ_SOURCE} ${YOLOV5_SOURCE})
 target_link_libraries(cmos_yolo_test ${ROCKCHIP_RTSP_LIB} ${OPENCV_LIBS} m dcmedia dcaiq pthread rga rknn_api Eigen3::Eigen)
 target_include_directories(cmos_yolo_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SYSROOT}/usr/include/rknn)
 install(TARGETS cmos_yolo_test RUNTIME DESTINATION "bin")
+install(FILES ${CMAKE_SOURCE_DIR}/yolov5/yolov5s_v6.2_output3_4.rknn DESTINATION /usr/share)
+install(FILES ${CMAKE_SOURCE_DIR}/yolov5/coco_80_labels_list.txt DESTINATION /usr/share)
 #install(FILES ${CMAKE_SOURCE_DIR}/yolov5/yolov5s_relu_rv1109_rv1126_out_opt.rknn DESTINATION /oem/usr/share)
 #install(FILES ${CMAKE_SOURCE_DIR}/yolov5/coco_80_labels_list.txt DESTINATION /oem/usr/share)
 

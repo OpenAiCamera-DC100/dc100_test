@@ -130,3 +130,10 @@ install(TARGETS cmos_tof_rtsp_test RUNTIME DESTINATION "bin")
 add_executable(cmos_vi_rockx_face_detect_rtsp_test ${CMAKE_SOURCE_DIR}/cmos_vi_rockx_face_detect_rtsp_test.cc  ${CC_DCAIQ_SOURCE})
 target_link_libraries(cmos_vi_rockx_face_detect_rtsp_test dcmedia dcaiq pthread ${ROCKCHIP_RTSP_LIB} ${OPENCV_LIBS} rockx)
 install(TARGETS cmos_vi_rockx_face_detect_rtsp_test RUNTIME DESTINATION "bin")
+
+#--------------------------
+# cmos_peoplecount_rtsp_test.cc
+#--------------------------
+add_executable(cmos_peoplecount_rtsp_test ${CMAKE_SOURCE_DIR}/cmos_peoplecount_rtsp_test.cc  ${CC_DCAIQ_SOURCE})
+target_link_libraries(cmos_peoplecount_rtsp_test dcmedia dcaiq pthread ${ROCKCHIP_RTSP_LIB} ${OPENCV_LIBS} rockx)
+install(TARGETS cmos_peoplecount_rtsp_test RUNTIME DESTINATION "bin")

@@ -2,7 +2,8 @@
 
 case "$1" in
 	start)
-        /oem/netserver_run.sh
+        cmos_netserver_test &
+	cmos_get_lux &
 		[ $? = 0 ] && echo "OK" || echo "FAIL"
 
 		;;

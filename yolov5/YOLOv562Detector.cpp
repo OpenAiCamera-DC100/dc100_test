@@ -5,7 +5,7 @@
 */
 #include "YOLOv562Detector.h"
 
-#define LABEL_NALE_TXT_PATH "/oem/usr/share/coco_80_labels_list.txt"
+#define LABEL_NALE_TXT_PATH "/usr/share/coco_80_labels_list.txt"
 #define OBJ_CLASS_NUM 80
 
 static char *labels[OBJ_CLASS_NUM];

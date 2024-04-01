@@ -1,7 +1,3 @@
-// Copyright 2020 Rockchip Electronics Co., Ltd. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
 #include <getopt.h>
 #include <math.h>
 #include <pthread.h>
@@ -36,8 +32,10 @@ rockx_object_array_t person_array;
 
 rockx_handle_t person_det_handle;
 
-int u32Width = 1920;
-int u32Height = 1080;
+
+int u32Width = 1280;
+int u32Height = 720;
+rockx_module_t rockx;
 
 rtsp_demo_handle g_rtsplive = NULL;
 static rtsp_session_handle g_rtsp_session;
@@ -54,7 +52,7 @@ static void *PersonDetectionStream(void *data) {
     cv::Mat *img = NULL;
 
     //create a person detection handle
-    ret = rockx_create(&person_det_handle, ROCKX_MODULE_PERSON_DETECTION_V3, &rockx_configs, sizeof(rockx_config_t));
+    ret = rockx_create(&person_det_handle, rockx, &rockx_configs, sizeof(rockx_config_t));
     if (ret != ROCKX_RET_SUCCESS) {
         printf("init rockx module ROCKX_MODULE_PERSON_DETCTION_V2 error %d\n", ret);
         return NULL;
@@ -84,7 +82,7 @@ static void *PersonDetectionStream(void *data) {
         }
         img = new cv::Mat(cv::Size(u32Width, u32Height), CV_8UC3, (char *)DC_MPI_MB_GetPtr(scrBuf));
         for (int i = 0; i < person_array.count; i++) {
-            if (person_array.object[i].score > 0.5) {
+            if (person_array.object[i].score > 0.3) {
                 cv::rectangle(*img, 
 							cv::Point(person_array.object[i].box.left, person_array.object[i].box.top), 
 							cv::Point(person_array.object[i].box.right, person_array.object[i].box.bottom), 
@@ -119,10 +117,64 @@ void video_packet_cb(MEDIA_BUFFER mb) { // Venc 데이터 정산, rtsp 전송 �
     packet_cnt++;
 }
 
+static DC_CHAR optstr[] = "?::x:";
+static const struct option long_options[] = {
+    {"rockx_data", required_argument, NULL, 'x'},
+    {"help", optional_argument, NULL, '?'},
+    {NULL, 0, NULL, 0},
+};
+
+static void print_usage(const DC_CHAR *name) {
+    printf("usage example:\n");
+    printf("\t%s [-x face_v1 = face_detection] "  //face_detection_v3_fast
+             "[   face_v2 = face_detection_v2]"  //face_detection_v2
+             "[   face_v3 = face_detection_v3]"  //face_detection_v3
+             "[   face_vl = face_detection_v3_large]"  //face_detection_v3_large
+             "[   head_v1 = head_detection_v1]"   //head_detection
+             //"[   head_v2 = head_detection_v2]"  //head_detection_v2
+            "\n",
+            name);
+}
+
 int main(int argc, char **argv) {
     int ret = 0;
 
     DC_CHAR *pIqfilesPath = (char *)"/etc/iqfiles";
+
+    int c;
+    while ((c = getopt_long(argc, argv, optstr, long_options, NULL)) != -1) {
+        const char *tmp_optarg = optarg;
+        switch (c) {
+        case 'x':
+            if (!strcmp(optarg, "face_v1")) {
+                rockx = ROCKX_MODULE_FACE_DETECTION;
+                printf("face_v1 select.\n");
+            } else if (!strcmp(optarg, "face_v2")) {
+                rockx = ROCKX_MODULE_FACE_DETECTION_V2;
+                printf("face_v2 select.\n");
+            } else if (!strcmp(optarg, "face_v3")) {
+                rockx = ROCKX_MODULE_FACE_DETECTION_V3;
+                printf("face_v3 select.\n");
+            } else if (!strcmp(optarg, "face_vl")) {
+                rockx = ROCKX_MODULE_FACE_DETECTION_V3_LARGE;
+                printf("face_vl select.\n");
+            } else if (!strcmp(optarg, "head_v1")) {
+                rockx = ROCKX_MODULE_HEAD_DETECTION;
+                printf("head_v1 select.\n");
+            //} else if (!strcmp(optarg, "head_v2")) {
+            //    rockx = ROCKX_MODULE_HEAD_DETECTION_V2;
+            //    printf("head_v2 select.\n");
+            } else {
+                printf("ERROR: Invalid rockx type.\n");
+                return 0;
+            }
+            break;
+        case '?':
+        default:
+            print_usage(argv[0]);
+            return 0;
+        }
+    }
 
     if (pIqfilesPath) { // RKAIQ iqfile 경로
 
@@ -270,7 +322,7 @@ int main(int argc, char **argv) {
     
     printf("%s initial finish\n", __func__);
 
-    rockx_add_config(&rockx_configs, (char *)ROCKX_CONFIG_DATA_PATH, "/usr/share/rockx-data-rv1109/");
+    rockx_add_config(&rockx_configs, (char *)ROCKX_CONFIG_DATA_PATH, "/oem/usr/lib/");
 
     pthread_t person_det_thread;
 	pthread_create(&person_det_thread, NULL, PersonDetectionStream, NULL);

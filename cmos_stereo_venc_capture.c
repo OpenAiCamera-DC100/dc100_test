@@ -19,7 +19,7 @@
 #define CAM_NUM 2
 
 static bool quit = false;
-static char *g_save_path = (char*)"/tmp/disparity/";
+static char *g_save_path = "/tmp/disparity/";
 
 rtsp_demo_handle g_rtsplive = NULL;
 static rtsp_session_handle g_rtsp_session_r;
@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
 
     DC_BOOL bMultictx = DC_TRUE;
 
-    char *iq_file_dir = (char*)"/etc/iqfiles/";
+    char *iq_file_dir = "/etc/iqfiles/";
     
     signal(SIGINT, sigterm_handler);
     

@@ -229,7 +229,7 @@ int main() {
                                 system("cmos_yolo_test &");
                             }
                             else if(!strcmp(exam, EX_7)) {
-                                
+                                system("cmos_stereo_disparity_test -a /etc/iqfiles/ -c 3 &");
                             }
                             else {
                                 
@@ -260,7 +260,7 @@ int main() {
                                 system("killall -2 cmos_yolo_test");
                             }
                             else if(!strcmp(exam, EX_7)) {
-                                
+                                 system("killall cmos_stereo_disparity_test");
                             }
                             else {
                             

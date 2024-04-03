@@ -141,6 +141,15 @@ install(TARGETS cmos_peoplecount_rtsp_test RUNTIME DESTINATION "bin")
 #--------------------------
 # cmos_stereo_disparity_test.cc
 #--------------------------
-#add_executable(cmos_stereo_disparity_test ${CMAKE_SOURCE_DIR}/cmos_stereo_disparity_test.cc  ${CC_DCAIQ_SOURCE})
-#target_link_libraries(cmos_stereo_disparity_test ${COMMON_DEPENDENT_LIBS} ${ROCKCHIP_RTSP_LIB} ${OPENCV_LIBS} rga rkaiq)
-#install(TARGETS cmos_stereo_disparity_test RUNTIME DESTINATION "bin")
+add_executable(cmos_stereo_disparity_test ${CMAKE_SOURCE_DIR}/cmos_stereo_disparity_test.cc  ${CC_DCAIQ_SOURCE})
+target_link_libraries(cmos_stereo_disparity_test dcmedia dcaiq pthread ${ROCKCHIP_RTSP_LIB} ${OPENCV_LIBS} rga dcaiq)
+install(TARGETS cmos_stereo_disparity_test RUNTIME DESTINATION "bin")
+install(FILES ${CMAKE_SOURCE_DIR}/stereo_calib/extrinsics.yml DESTINATION /usr/share)
+install(FILES ${CMAKE_SOURCE_DIR}/stereo_calib/intrinsics.yml DESTINATION /usr/share)
+
+#--------------------------
+# cmos_stereo_venc_capture.c
+#--------------------------
+add_executable(cmos_stereo_venc_capture ${CMAKE_SOURCE_DIR}/cmos_stereo_venc_capture.c ${C_DCAIQ_SOURCE})
+target_link_libraries(cmos_stereo_venc_capture dcmedia dcaiq_c pthread ${ROCKCHIP_RTSP_LIB})
+install(TARGETS cmos_stereo_venc_capture RUNTIME DESTINATION "bin")
